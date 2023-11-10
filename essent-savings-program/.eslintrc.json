@@ -12,5 +12,5 @@
   },
   "plugins": ["@typescript-eslint"],
   "rules": {},
-  "ignorePatterns": ["src/**/*.test.ts"]
+  "ignorePatterns": ["src/**/*.test.ts", "dist/*", "tmp/*", "jest.preset.js"]
 }

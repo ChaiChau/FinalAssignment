@@ -1,4 +1,5 @@
 import express from 'express';
+import { cloneDeep } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
 import { Account } from './account';
 
@@ -35,7 +36,11 @@ app.post('/accounts', (req, res) => {
   // Store accounts in local cache
   accounts.push(newAccount);
 
-  return res.status(200).json(newAccount);
+  return res.status(200).json({
+    id: newAccount.id,
+    name: newAccount.name,
+    balance: newAccount.balance,
+  });
 });
 
 // Implementation to get all accounts
@@ -44,37 +49,57 @@ app.get('/accounts', (req, res) => {
 
   let updatedAccounts: Account[] = [];
 
-  updatedAccounts = [...accounts];
+  updatedAccounts = cloneDeep(accounts);
 
-  console.log(updatedAccounts);
+  if (simulatedDay === 0) {
+    updatedAccounts.forEach((acc) => {
+      acc.balance = 0;
+      delete acc.deposits;
+    });
+  }
 
   if (simulatedDay > 0) {
     updatedAccounts.forEach((acc) => {
+      acc.balance = 0;
       acc.deposits.forEach((dep) => {
         if (dep.depositDay < Number(simulatedDay)) {
-          acc.balance = +dep.amount;
+          acc.balance += dep.amount;
         }
       });
       delete acc.deposits;
     });
   }
 
-  if (simulatedDay === 0) {
-    updatedAccounts.forEach((acc) => {
-      delete acc.deposits;
-    });
-  }
   return res.status(201).json(updatedAccounts);
 });
 
 // Implementation to retrieve account by account id
 app.get('/accounts/:accountId', (req, res) => {
   const { accountId } = req.params;
-  const account = accounts.find((acc) => acc.id === accountId);
+  const simulatedDay? = Number(req.get('Simulated-Day'));
+  let accountList: Account[] = [];
+  accountList = cloneDeep(accounts);
+  const account = accountList.find((acc) => acc.id === accountId);
 
   if (!account) {
     return res.status(404).send();
   }
+
+  if (simulatedDay === 0) {
+    account.balance = 0;
+    delete account.deposits;
+  }
+
+  if (simulatedDay > 0) {
+    account.balance = 0;
+    account.deposits.forEach((dep) => {
+      if (dep.depositDay < Number(simulatedDay)) {
+        account.balance += dep.amount;
+      }
+    });
+    delete account.deposits;
+  }
+
   return res.status(200).json(account);
 });
 
@@ -83,8 +108,6 @@ app.post('/accounts/:accountId/deposits', (req, res) => {
   const { amount } = req.body;
   const { accountId } = req.params;
   const simulatedDay = Number(req.get('Simulated-Day'));
-
-  console.log(accounts);
 
   const account: Account = accounts.find((acc) => acc.id === accountId);
   if (!account) {
@@ -98,7 +121,7 @@ app.post('/accounts/:accountId/deposits', (req, res) => {
   };
 
   account.deposits.push(deposit);
-  account.balance = +amount;
+  account.balance += amount;
 
   return res.status(201).json({
     depositId: deposit.depositId,
