@@ -189,6 +189,11 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
 app.post('/products', (req, res) => {
   // eslint-disable-next-line object-curly-newline
   const { title, description, price, stock } = req.body;
+  const product = products.find((prod) => prod.title === title);
+
+  if (!title || !description || !price || !stock || product) {
+    return res.status(400).send();
+  }
 
   // Create a new product
   const newProduct: Product = {
