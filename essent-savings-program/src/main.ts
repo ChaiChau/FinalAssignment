@@ -29,6 +29,7 @@ app.post('/accounts', (req, res) => {
     id: uuidv4(),
     name,
     balance: 0,
+    deposits: [],
   };
 
   // Store accounts in local cache
@@ -39,7 +40,31 @@ app.post('/accounts', (req, res) => {
 
 // Implementation to get all accounts
 app.get('/accounts', (req, res) => {
-  res.status(201).json(accounts);
+  const simulatedDay = Number(req.get('Simulated-Day'));
+
+  let updatedAccounts: Account[] = [];
+
+  updatedAccounts = [...accounts];
+
+  console.log(updatedAccounts);
+
+  if (simulatedDay > 0) {
+    updatedAccounts.forEach((acc) => {
+      acc.deposits.forEach((dep) => {
+        if (dep.depositDay < Number(simulatedDay)) {
+          acc.balance = +dep.amount;
+        }
+      });
+      delete acc.deposits;
+    });
+  }
+
+  if (simulatedDay === 0) {
+    updatedAccounts.forEach((acc) => {
+      delete acc.deposits;
+    });
+  }
+  return res.status(201).json(updatedAccounts);
 });
 
 // Implementation to retrieve account by account id
@@ -51,6 +76,35 @@ app.get('/accounts/:accountId', (req, res) => {
     return res.status(404).send();
   }
   return res.status(200).json(account);
+});
+
+// Implementation to register deposits
+app.post('/accounts/:accountId/deposits', (req, res) => {
+  const { amount } = req.body;
+  const { accountId } = req.params;
+  const simulatedDay = Number(req.get('Simulated-Day'));
+
+  console.log(accounts);
+
+  const account: Account = accounts.find((acc) => acc.id === accountId);
+  if (!account) {
+    return res.status(400).send();
+  }
+
+  const deposit = {
+    depositId: uuidv4(),
+    depositDay: simulatedDay + 1,
+    amount,
+  };
+
+  account.deposits.push(deposit);
+  account.balance = +amount;
+
+  return res.status(201).json({
+    depositId: deposit.depositId,
+    name: account.name,
+    balance: account.balance,
+  });
 });
 
 app.listen(port, host, () => {
