@@ -2,6 +2,7 @@ import express from 'express';
 import { cloneDeep } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
 import { Account } from './account';
+import Products from './products';
 
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -31,6 +32,7 @@ app.post('/accounts', (req, res) => {
     name,
     balance: 0,
     deposits: [],
+    purchase: { totalPurchaseCost: 0 },
   };
 
   // Store accounts in local cache
@@ -55,6 +57,7 @@ app.get('/accounts', (req, res) => {
     updatedAccounts.forEach((acc) => {
       acc.balance = 0;
       delete acc.deposits;
+      delete acc.purchase;
     });
   }
 
@@ -62,11 +65,15 @@ app.get('/accounts', (req, res) => {
     updatedAccounts.forEach((acc) => {
       acc.balance = 0;
       acc.deposits.forEach((dep) => {
-        if (dep.depositDay < Number(simulatedDay)) {
+        if (dep.depositDay <= Number(simulatedDay)) {
           acc.balance += dep.amount;
         }
       });
       delete acc.deposits;
+      if (acc.purchase?.lastPurchaseDay <= simulatedDay) {
+        acc.balance -= acc.purchase.totalPurchaseCost;
+      }
+      delete acc.purchase;
     });
   }
 
@@ -76,7 +83,7 @@ app.get('/accounts', (req, res) => {
 // Implementation to retrieve account by account id
 app.get('/accounts/:accountId', (req, res) => {
   const { accountId } = req.params;
-  const simulatedDay? = Number(req.get('Simulated-Day'));
+  const simulatedDay = Number(req.get('Simulated-Day'));
   let accountList: Account[] = [];
   accountList = cloneDeep(accounts);
   const account = accountList.find((acc) => acc.id === accountId);
@@ -88,16 +95,21 @@ app.get('/accounts/:accountId', (req, res) => {
   if (simulatedDay === 0) {
     account.balance = 0;
     delete account.deposits;
+    delete account.purchase;
   }
 
   if (simulatedDay > 0) {
     account.balance = 0;
     account.deposits.forEach((dep) => {
-      if (dep.depositDay < Number(simulatedDay)) {
+      if (dep.depositDay <= Number(simulatedDay)) {
         account.balance += dep.amount;
       }
     });
     delete account.deposits;
+    if (account.purchase?.lastPurchaseDay <= simulatedDay) {
+      account.balance -= account.purchase.totalPurchaseCost;
+    }
+    delete account.purchase;
   }
 
   return res.status(200).json(account);
@@ -111,6 +123,10 @@ app.post('/accounts/:accountId/deposits', (req, res) => {
 
   const account: Account = accounts.find((acc) => acc.id === accountId);
   if (!account) {
+    return res.status(400).send();
+  }
+
+  if (account.deposits.find((dep) => dep.depositDay > simulatedDay)) {
     return res.status(400).send();
   }
 
@@ -128,6 +144,44 @@ app.post('/accounts/:accountId/deposits', (req, res) => {
     name: account.name,
     balance: account.balance,
   });
+});
+
+// Implementation to register product purchases
+app.post('/accounts/:accountId/purchases', (req, res) => {
+  const { productId } = req.body;
+  const { accountId } = req.params;
+  const simulatedDay = Number(req.get('Simulated-Day'));
+
+  const account: Account = accounts.find((acc) => acc.id === accountId);
+  const product = Products.find((prod) => prod.id === productId);
+  if (!account || !product) {
+    return res.status(400).send();
+  }
+
+  if (product.stock - 1 < 0) {
+    return res.status(409).send();
+  }
+
+  let bal = 0;
+  account.deposits.forEach((dep) => {
+    if (dep.depositDay <= Number(simulatedDay)) {
+      bal += dep.amount;
+    }
+  });
+  if (bal - product.price - account.purchase.totalPurchaseCost <= 0) {
+    return res.status(409).send();
+  }
+
+  if (simulatedDay <= account.purchase?.lastPurchaseDay) {
+    return res.status(400).send();
+  }
+
+  account.balance -= product.price;
+  account.purchase.lastPurchaseDay = simulatedDay;
+  account.purchase.totalPurchaseCost += product.price;
+  product.stock -= 1;
+
+  return res.status(200).send();
 });
 
 app.listen(port, host, () => {

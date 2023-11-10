@@ -7,4 +7,8 @@ export interface Account {
     depositDay: number;
     amount: number;
   }[];
+  purchase?: {
+    totalPurchaseCost?: number;
+    lastPurchaseDay?: number;
+  };
 }
