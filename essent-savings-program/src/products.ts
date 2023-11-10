@@ -5,6 +5,7 @@ const products = [
     description: 'Super duper Essent solar panel',
     stock: 10,
     price: 750,
+    saleDays: [],
   },
   {
     id: 'insulation',
@@ -12,6 +13,7 @@ const products = [
     description: 'Cavity wall insulation',
     stock: 10,
     price: 2500,
+    saleDays: [],
   },
   {
     id: 'heatpump',
@@ -19,6 +21,7 @@ const products = [
     description: 'Hybrid heat pump',
     stock: 3,
     price: 5000,
+    saleDays: [],
   },
 ];
 
@@ -30,4 +33,5 @@ export interface Product {
   description: string;
   stock: number;
   price: number;
+  saleDays?: number[];
 }

@@ -71,6 +71,7 @@ app.get('/accounts', (req, res) => {
         }
       });
       delete acc.deposits;
+      // Assumption: Account balance will be retrieved only for chronological simulated days
       if (acc.purchase?.lastPurchaseDay <= simulatedDay) {
         acc.balance -= acc.purchase.totalPurchaseCost;
       }
@@ -155,20 +156,23 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
 
   const account: Account = accounts.find((acc) => acc.id === accountId);
   const product = products.find((prod) => prod.id === productId);
+
   if (!account || !product) {
     return res.status(400).send();
   }
 
-  if (product.stock - 1 < 0) {
+  if (product.stock - product.saleDays.length - 1 < 0) {
     return res.status(409).send();
   }
 
+  // Balance calculation
   let bal = 0;
   account.deposits.forEach((dep) => {
     if (dep.depositDay <= Number(simulatedDay)) {
       bal += dep.amount;
     }
   });
+
   if (bal - product.price - account.purchase.totalPurchaseCost <= 0) {
     return res.status(409).send();
   }
@@ -180,7 +184,7 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
   account.balance -= product.price;
   account.purchase.lastPurchaseDay = simulatedDay;
   account.purchase.totalPurchaseCost += product.price;
-  product.stock -= 1;
+  product.saleDays.push(simulatedDay);
 
   return res.status(200).send();
 });
@@ -202,12 +206,68 @@ app.post('/products', (req, res) => {
     description,
     price,
     stock,
+    saleDays: [],
   };
 
   // Store products in local cache
   productList.push(newProduct);
+  let newProductList: Product[] = [];
+  newProductList = cloneDeep(productList);
 
-  return res.status(201).json(productList);
+  newProductList.map((prod) => {
+    // eslint-disable-next-line no-param-reassign
+    delete prod.saleDays;
+    return prod;
+  });
+
+  return res.status(201).json(newProductList);
+});
+
+// Implementation to retrieve products
+app.get('/products', (req, res) => {
+  const simulatedDay = Number(req.get('Simulated-Day'));
+
+  let presentProducts: Product[] = [];
+
+  presentProducts = cloneDeep(productList);
+
+  presentProducts.forEach((prod) => {
+    let soldStock = 0;
+    prod.saleDays.forEach((dep) => {
+      if (dep <= Number(simulatedDay)) {
+        soldStock += 1;
+      }
+    });
+    // eslint-disable-next-line no-param-reassign
+    prod.stock -= soldStock;
+    // eslint-disable-next-line no-param-reassign
+    delete prod.saleDays;
+  });
+
+  return res.status(200).json(presentProducts);
+});
+
+// Implementation to retrieve product by productId
+app.get('/products/:productId', (req, res) => {
+  const { productId } = req.params;
+  const simulatedDay = Number(req.get('Simulated-Day'));
+
+  let currentProducts: Product[] = [];
+
+  currentProducts = cloneDeep(productList);
+
+  const currentProduct = currentProducts.find((prod) => prod.id === productId);
+
+  let soldStock = 0;
+  currentProduct.saleDays.forEach((dep) => {
+    if (dep <= Number(simulatedDay)) {
+      soldStock += 1;
+    }
+  });
+  currentProduct.stock -= soldStock;
+  delete currentProduct.saleDays;
+
+  return res.status(200).json(currentProduct);
 });
 
 app.listen(port, host, () => {
