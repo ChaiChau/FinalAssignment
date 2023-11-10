@@ -2,7 +2,7 @@ import express from 'express';
 import { cloneDeep } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
 import { Account } from './account';
-import Products from './products';
+import products, { Product } from './products';
 
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -11,6 +11,7 @@ const app = express();
 
 // Initialize local cache
 const accounts: Account[] = [];
+const productList: Product[] = products;
 
 // Parse incoming json requests
 app.use(express.json());
@@ -153,7 +154,7 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
   const simulatedDay = Number(req.get('Simulated-Day'));
 
   const account: Account = accounts.find((acc) => acc.id === accountId);
-  const product = Products.find((prod) => prod.id === productId);
+  const product = products.find((prod) => prod.id === productId);
   if (!account || !product) {
     return res.status(400).send();
   }
@@ -182,6 +183,26 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
   product.stock -= 1;
 
   return res.status(200).send();
+});
+
+// Implementation to register products
+app.post('/products', (req, res) => {
+  // eslint-disable-next-line object-curly-newline
+  const { title, description, price, stock } = req.body;
+
+  // Create a new product
+  const newProduct: Product = {
+    id: uuidv4(),
+    title,
+    description,
+    price,
+    stock,
+  };
+
+  // Store products in local cache
+  productList.push(newProduct);
+
+  return res.status(201).json(productList);
 });
 
 app.listen(port, host, () => {

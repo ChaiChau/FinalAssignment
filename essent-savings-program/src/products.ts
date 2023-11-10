@@ -23,3 +23,11 @@ const products = [
 ];
 
 export default products;
+
+export interface Product {
+  id: string;
+  title: string;
+  description: string;
+  stock: number;
+  price: number;
+}
