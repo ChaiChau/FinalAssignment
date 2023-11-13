@@ -1,3 +1,4 @@
+/* eslint-disable operator-linebreak */
 import express from 'express';
 import { cloneDeep } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
@@ -71,6 +72,11 @@ app.get('/accounts', (req, res) => {
         }
       });
       delete acc.deposits;
+      if (simulatedDay >= 30) {
+        const payDay = Math.floor(simulatedDay / 30);
+        const accuredInterest = (30 / 365) * 0.08 * acc.balance * payDay;
+        acc.balance += Number(accuredInterest.toFixed(2));
+      }
       // Assumption: Account balance will be retrieved only for chronological simulated days
       if (acc.purchase?.lastPurchaseDay <= simulatedDay) {
         acc.balance -= acc.purchase.totalPurchaseCost;
@@ -108,6 +114,11 @@ app.get('/accounts/:accountId', (req, res) => {
       }
     });
     delete account.deposits;
+    if (simulatedDay >= 30) {
+      const payDay = Math.floor(simulatedDay / 30);
+      const accuredInterest = (30 / 365) * 0.08 * account.balance * payDay;
+      account.balance += Number(accuredInterest.toFixed(2));
+    }
     if (account.purchase?.lastPurchaseDay <= simulatedDay) {
       account.balance -= account.purchase.totalPurchaseCost;
     }
@@ -167,13 +178,28 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
 
   // Balance calculation
   let bal = 0;
+  let accuredInterest = 0;
   account.deposits.forEach((dep) => {
     if (dep.depositDay <= Number(simulatedDay)) {
       bal += dep.amount;
     }
   });
 
-  if (bal - product.price - account.purchase.totalPurchaseCost <= 0) {
+  if (simulatedDay >= 30) {
+    const payDay = Math.floor(simulatedDay / 30);
+    accuredInterest = Number(
+      // eslint-disable-next-line @typescript-eslint/comma-dangle
+      ((30 / 365) * 0.08 * account.balance * payDay).toFixed(2)
+    );
+  }
+
+  if (
+    bal +
+      accuredInterest -
+      product.price -
+      account.purchase.totalPurchaseCost <=
+    0
+  ) {
     return res.status(409).send();
   }
 
@@ -181,7 +207,7 @@ app.post('/accounts/:accountId/purchases', (req, res) => {
     return res.status(400).send();
   }
 
-  account.balance -= product.price;
+  account.balance = account.balance + accuredInterest - product.price;
   account.purchase.lastPurchaseDay = simulatedDay;
   account.purchase.totalPurchaseCost += product.price;
   product.saleDays.push(simulatedDay);
